@@ -118,10 +118,10 @@ public:
 
   void update(const ros::Time& time, const ros::Duration& period);
 
+protected:
+
   virtual void checkReachedTrajectoryGoal();
   /*\}*/
-
-protected:
 
   struct TimeData
   {
@@ -208,6 +208,9 @@ protected:
   virtual void preemptActiveGoal();
   virtual bool queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
                                  control_msgs::QueryTrajectoryState::Response& resp);
+
+  /** RT-safe version of preemptActiveGoal */
+  virtual void preemptActiveRTGoal();
 
   /**
    * \brief Publish current controller state at a throttled frequency.

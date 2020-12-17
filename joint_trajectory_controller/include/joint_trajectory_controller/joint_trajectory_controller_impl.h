@@ -160,7 +160,7 @@ template <class SegmentImpl, class HardwareInterface>
 inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
 stopping(const ros::Time& /*time*/)
 {
-  preemptActiveGoal();
+  preemptActiveRTGoal();
 }
 
 template <class SegmentImpl, class HardwareInterface>
@@ -176,13 +176,10 @@ inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
 preemptActiveGoal()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
-
-  // Cancels the currently active goal
-  if (current_active_goal)
-  {
-    // Marks the current goal as canceled
-    rt_active_goal_.reset();
-    current_active_goal->gh_.setCanceled();
+  preemptActiveRTGoal();
+  // KLUDGE force the non-realtime update to run immediately after to finish the goal cancellation.
+  if (current_active_goal) {
+    current_active_goal->runNonRealtime(ros::TimerEvent());
   }
 }
 
@@ -462,6 +459,11 @@ update(const ros::Time& time, const ros::Duration& period)
   publishState(time_data.uptime);
 }
 
+/**
+ * Check if all joints have reached their goal state, and mark the goal handle as succeeded if so.
+ * Derived classes can specialize this if they need finer control over goal success
+ * (e.g. if there are additional criteria like for probing).
+ */
 template <class SegmentImpl, class HardwareInterface>
 void JointTrajectoryController<SegmentImpl, HardwareInterface>::
 checkReachedTrajectoryGoal()
@@ -734,6 +736,21 @@ publishState(const ros::Time& time)
 
       state_publisher_->unlockAndPublish();
     }
+  }
+}
+
+template <class SegmentImpl, class HardwareInterface>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+preemptActiveRTGoal()
+{
+  RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
+
+  // Cancels the currently active goal
+  if (current_active_goal)
+  {
+    // Marks the current goal as canceled
+    rt_active_goal_.reset();
+    current_active_goal->setCanceled();
   }
 }
 
