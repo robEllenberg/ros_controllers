@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <joint_trajectory_controller/joint_trajectory_controller_fwd.h>
 
 namespace joint_trajectory_controller
 {

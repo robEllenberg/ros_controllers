@@ -1,7 +1,6 @@
 include
 include/joint_trajectory_controller
 include/trajectory_interface
-test
 ../../ros_control/controller_manager/include
 /opt/ros/noetic/include
 /usr/include/
