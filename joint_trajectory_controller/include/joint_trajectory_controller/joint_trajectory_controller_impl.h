@@ -449,16 +449,7 @@ update(const ros::Time& time, const ros::Duration& period)
     }
   }
 
-  //If there is an active goal and all segments finished successfully then set goal as succeeded
-  RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
-  if (current_active_goal && successful_joint_traj_.count() == getNumberOfJoints())
-  {
-    current_active_goal->preallocated_result_->error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
-    current_active_goal->setSucceeded(current_active_goal->preallocated_result_);
-    current_active_goal.reset(); // do not publish feedback
-    rt_active_goal_.reset();
-    successful_joint_traj_.reset();
-  }
+  checkReachedTrajectoryGoal();
 
   updateFuncExtensionPoint(curr_traj, time_data);
 
@@ -470,6 +461,23 @@ update(const ros::Time& time, const ros::Duration& period)
 
   publishState(time_data.uptime);
 }
+
+template <class SegmentImpl, class HardwareInterface>
+void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+checkReachedTrajectoryGoal()
+{
+  //If there is an active goal and all segments finished successfully then set goal as succeeded
+  RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
+  if (current_active_goal && successful_joint_traj_.count() == getNumberOfJoints())
+  {
+    current_active_goal->preallocated_result_->error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
+    current_active_goal->setSucceeded(current_active_goal->preallocated_result_);
+    current_active_goal.reset(); // do not publish feedback
+    rt_active_goal_.reset();
+    successful_joint_traj_.reset();
+  }
+}
+
 
 template <class SegmentImpl, class HardwareInterface>
 bool JointTrajectoryController<SegmentImpl, HardwareInterface>::

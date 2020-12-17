@@ -117,6 +117,8 @@ public:
   void stopping(const ros::Time& /*time*/);
 
   void update(const ros::Time& time, const ros::Duration& period);
+
+  virtual void checkReachedTrajectoryGoal();
   /*\}*/
 
 protected:
