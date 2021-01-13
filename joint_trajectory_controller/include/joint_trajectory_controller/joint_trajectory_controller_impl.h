@@ -204,6 +204,8 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
                                                                      ros::NodeHandle&   root_nh,
                                                                      ros::NodeHandle&   controller_nh)
 {
+    ROS_INFO_STREAM(
+        "init for JointTrajectoryController");
   using namespace internal;
 
   // Cache controller node handle
@@ -215,19 +217,19 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
   // State publish rate
   double state_publish_rate = 50.0;
   controller_nh_.getParam("state_publish_rate", state_publish_rate);
-  ROS_DEBUG_STREAM_NAMED(name_, "Controller state will be published at " << state_publish_rate << "Hz.");
+  ROS_INFO_STREAM_NAMED(name_, "Controller state will be published at " << state_publish_rate << "Hz.");
   state_publisher_period_ = ros::Duration(1.0 / state_publish_rate);
 
   // Action status checking update rate
   double action_monitor_rate = 20.0;
   controller_nh_.getParam("action_monitor_rate", action_monitor_rate);
   action_monitor_period_ = ros::Duration(1.0 / action_monitor_rate);
-  ROS_DEBUG_STREAM_NAMED(name_, "Action status changes will be monitored at " << action_monitor_rate << "Hz.");
+  ROS_INFO_STREAM_NAMED(name_, "Action status changes will be monitored at " << action_monitor_rate << "Hz.");
 
   // Stop trajectory duration
   stop_trajectory_duration_ = 0.0;
   controller_nh_.getParam("stop_trajectory_duration", stop_trajectory_duration_);
-  ROS_DEBUG_STREAM_NAMED(name_, "Stop trajectory has a duration of " << stop_trajectory_duration_ << "s.");
+  ROS_INFO_STREAM_NAMED(name_, "Stop trajectory has a duration of " << stop_trajectory_duration_ << "s.");
 
   // Checking if partial trajectories are allowed
   controller_nh_.param<bool>("allow_partial_joints_goal", allow_partial_joints_goal_, false);
@@ -267,12 +269,12 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
     angle_wraparound_[i] = urdf_joints[i]->type == urdf::Joint::CONTINUOUS;
     const std::string not_if = angle_wraparound_[i] ? "" : "non-";
 
-    ROS_DEBUG_STREAM_NAMED(name_, "Found " << not_if << "continuous joint '" << joint_names_[i] << "' in '" <<
+    ROS_INFO_STREAM_NAMED(name_, "Found " << not_if << "continuous joint '" << joint_names_[i] << "' in '" <<
                                   this->getHardwareInterfaceType() << "'.");
   }
 
   assert(joints_.size() == angle_wraparound_.size());
-  ROS_DEBUG_STREAM_NAMED(name_, "Initialized controller '" << name_ << "' with:" <<
+  ROS_INFO_STREAM_NAMED(name_, "Initialized controller '" << name_ << "' with:" <<
                          "\n- Number of joints: " << getNumberOfJoints() <<
                          "\n- Hardware interface type: '" << this->getHardwareInterfaceType() << "'" <<
                          "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
