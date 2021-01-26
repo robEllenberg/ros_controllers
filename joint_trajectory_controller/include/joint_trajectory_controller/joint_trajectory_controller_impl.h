@@ -508,6 +508,10 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   Options options;
   options.error_string              = error_string;
   std::string error_string_tmp;
+  const auto motion_settings = queued_motion_settings_;
+  // Officially accepted queued motion settings here, even if the trajectory update fails.
+  // The planning pipeline must update the settings before requesting a new trajectory.
+  clearQueuedSettings();
 
   // Preconditions
   if (!this->isRunning())
@@ -560,6 +564,8 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   {
     ExtendedTrajectoryPtr traj_ptr(new ExtendedTrajectory());
     traj_ptr->trajectory = initJointTrajectory<Trajectory>(*msg, next_update_time, options);
+    // Add queued motion settings (and reset the queue value for the next service call)
+    traj_ptr->motion_settings = motion_settings;
     if (!traj_ptr->trajectory.empty())
     {
       curr_trajectory_box_.set(traj_ptr);
@@ -777,19 +783,20 @@ template <class SegmentImpl, class HardwareInterface, class MotionSettings>
 inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 setHoldPosition(const ros::Time& time, RealtimeGoalHandlePtr gh)
 {
+    setHoldPositionWithSettings(MotionSettings(), time, gh);
+}
+
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
+setHoldPositionWithSettings(MotionSettings const &settings, const ros::Time& utime, RealtimeGoalHandlePtr gh)
+{
   hold_traj_builder_
-      ->setStartTime(time.toSec())
+      ->setStartTime(utime.toSec())
       ->setGoalHandle(gh)
       ->buildTrajectory(&(hold_trajectory_ptr_->trajectory));
   hold_traj_builder_->reset();
-
-
-  ExtendedTrajectoryPtr curr_traj_ptr;
-  curr_trajectory_box_.get(curr_traj_ptr);
-  // Copy over motion settings
-  if (curr_traj_ptr) {
-      hold_trajectory_ptr_->motion_settings = curr_traj_ptr->motion_settings;
-  }
+  hold_trajectory_ptr_->motion_settings = settings;
+  // Swap hold / stop trajectory in place of current one
   curr_trajectory_box_.set(hold_trajectory_ptr_);
 }
 

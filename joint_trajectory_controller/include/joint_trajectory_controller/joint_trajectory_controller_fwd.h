@@ -160,6 +160,7 @@ protected:
   typedef HardwareInterfaceAdapter<HardwareInterface, typename Segment::State> HwIfaceAdapter;
   typedef typename HardwareInterface::ResourceHandleType JointHandle;
 
+  MotionSettings queued_motion_settings_;        ///< Queued settings from non-realtime side
   bool                      verbose_;            ///< Hard coded verbose flag to help in debugging
   std::string               name_;               ///< Controller name.
   std::vector<JointHandle>  joints_;             ///< Handles to controlled joints.
@@ -217,6 +218,7 @@ protected:
   virtual bool queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
                                  control_msgs::QueryTrajectoryState::Response& resp);
 
+  virtual void clearQueuedSettings() { this->queued_motion_settings_ = MotionSettings();}
   /** RT-safe version of preemptActiveGoal */
   virtual void preemptActiveRTGoal();
 
@@ -242,6 +244,7 @@ protected:
    * \note This method is realtime-safe.
    */
   void setHoldPosition(const ros::Time& time, RealtimeGoalHandlePtr gh=RealtimeGoalHandlePtr());
+  void setHoldPositionWithSettings(MotionSettings const &settings, const ros::Time& uptime, RealtimeGoalHandlePtr gh=RealtimeGoalHandlePtr());
 
 protected:
   /**
