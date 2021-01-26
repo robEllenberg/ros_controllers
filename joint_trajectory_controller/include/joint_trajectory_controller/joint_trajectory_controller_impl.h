@@ -373,7 +373,7 @@ update(const ros::Time& time, const ros::Duration& period)
   // fetch the currently followed trajectory, it has been updated by the non-rt thread with something that starts in the
   // next control cycle, leaving the current cycle without a valid trajectory.
 
-  updateStates(time_data.uptime, &curr_traj_ptr->trajectory);
+  updateStates(time_data.uptime, curr_traj);
 
   // Update current state and state error
   for (unsigned int i = 0; i < getNumberOfJoints(); ++i)
@@ -797,13 +797,13 @@ getNumberOfJoints() const
 
 template <class SegmentImpl, class HardwareInterface, class MotionSettings>
 void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
-updateStates(const ros::Time& sample_time, const Trajectory* const traj)
+updateStates(const ros::Time& sample_time, Trajectory const &traj)
 {
   old_desired_state_ = desired_state_;
 
   for (unsigned int joint_index = 0; joint_index < getNumberOfJoints(); ++joint_index)
   {
-    const auto segment = sample( (*traj)[joint_index], sample_time.toSec(), desired_joint_state_);
+    const auto segment = sample(traj[joint_index], sample_time.toSec(), desired_joint_state_);
 
     current_state_.position[joint_index] = joints_[joint_index].getPosition();
     current_state_.velocity[joint_index] = joints_[joint_index].getVelocity();

@@ -255,7 +255,7 @@ protected:
    * @note This function is NOT thread safe but intended to be used in the
    * update-function.
    */
-  void updateStates(const ros::Time& sample_time, const Trajectory* const traj);
+  void updateStates(const ros::Time& sample_time, Trajectory const &traj);
 
 protected:
   /**
