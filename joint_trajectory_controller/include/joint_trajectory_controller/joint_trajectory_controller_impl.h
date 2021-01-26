@@ -129,8 +129,8 @@ std::string getLeafNamespace(const ros::NodeHandle& nh)
 
 } // namespace
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 starting(const ros::Time& time)
 {
   // Update time data
@@ -156,23 +156,23 @@ starting(const ros::Time& time)
   hw_iface_adapter_.starting(time_data.uptime);
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 stopping(const ros::Time& /*time*/)
 {
   preemptActiveRTGoal();
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 trajectoryCommandCB(const JointTrajectoryConstPtr& msg)
 {
   const bool update_ok = updateTrajectoryCommand(msg, RealtimeGoalHandlePtr());
   if (update_ok) {preemptActiveGoal();}
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 preemptActiveGoal()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -183,8 +183,8 @@ preemptActiveGoal()
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 JointTrajectoryController()
   : verbose_(false) // Set to true during debugging
 {
@@ -199,8 +199,8 @@ JointTrajectoryController()
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInterface* hw,
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+bool JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::init(HardwareInterface* hw,
                                                                      ros::NodeHandle&   root_nh,
                                                                      ros::NodeHandle&   controller_nh)
 {
@@ -314,7 +314,12 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
 
   successful_joint_traj_ = boost::dynamic_bitset<>(getNumberOfJoints());
 
-  hold_trajectory_ptr_ = createHoldTrajectory(n_joints);
+  hold_trajectory_ptr_.reset(new ExtendedTrajectory());
+
+  if (!createHoldTrajectory(n_joints, hold_trajectory_ptr_->trajectory)) {
+      ROS_ERROR_STREAM_NAMED(name_, "Failed to create valid hold trajectory");
+      return false;
+  }
   assert(joint_names_.size() == hold_trajectory_ptr_->size());
 
   if (stop_trajectory_duration_ == 0.0)
@@ -342,14 +347,14 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 update(const ros::Time& time, const ros::Duration& period)
 {
   // Get currently followed trajectory
-  TrajectoryPtr curr_traj_ptr;
+  ExtendedTrajectoryPtr curr_traj_ptr;
   curr_trajectory_box_.get(curr_traj_ptr);
-  Trajectory& curr_traj = *curr_traj_ptr;
+  Trajectory& curr_traj = curr_traj_ptr->trajectory;
 
   old_time_data_ = *(time_data_.readFromRT());
 
@@ -368,7 +373,7 @@ update(const ros::Time& time, const ros::Duration& period)
   // fetch the currently followed trajectory, it has been updated by the non-rt thread with something that starts in the
   // next control cycle, leaving the current cycle without a valid trajectory.
 
-  updateStates(time_data.uptime, curr_traj_ptr.get());
+  updateStates(time_data.uptime, &curr_traj_ptr->trajectory);
 
   // Update current state and state error
   for (unsigned int i = 0; i < getNumberOfJoints(); ++i)
@@ -466,8 +471,8 @@ update(const ros::Time& time, const ros::Duration& period)
  * Derived classes can specialize this if they need finer control over goal success
  * (e.g. if there are additional criteria like for probing).
  */
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 checkReachedTrajectoryGoal()
 {
   //If there is an active goal and all segments finished successfully then set goal as succeeded
@@ -483,8 +488,8 @@ checkReachedTrajectoryGoal()
 }
 
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+bool JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePtr gh, std::string* error_string)
 {
   typedef InitJointTrajectoryOptions<Trajectory> Options;
@@ -527,11 +532,11 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   }
 
   // Trajectory initialization options
-  TrajectoryPtr curr_traj_ptr;
+  ExtendedTrajectoryPtr curr_traj_ptr;
   curr_trajectory_box_.get(curr_traj_ptr);
 
   options.other_time_base           = &next_update_uptime;
-  options.current_trajectory        = curr_traj_ptr.get();
+  options.current_trajectory        = &curr_traj_ptr->trajectory;
   options.joint_names               = &joint_names_;
   options.angle_wraparound          = &angle_wraparound_;
   options.rt_goal_handle            = gh;
@@ -541,9 +546,9 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   // Update currently executing trajectory
   try
   {
-    TrajectoryPtr traj_ptr(new Trajectory);
-    *traj_ptr = initJointTrajectory<Trajectory>(*msg, next_update_time, options);
-    if (!traj_ptr->empty())
+    ExtendedTrajectoryPtr traj_ptr(new ExtendedTrajectory());
+    traj_ptr->trajectory = initJointTrajectory<Trajectory>(*msg, next_update_time, options);
+    if (!traj_ptr->trajectory.empty())
     {
       curr_trajectory_box_.set(traj_ptr);
     }
@@ -569,8 +574,8 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 goalCB(GoalHandle gh)
 {
   ROS_DEBUG_STREAM_NAMED(name_,"Received new action goal");
@@ -642,8 +647,8 @@ goalCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 cancelCB(GoalHandle gh)
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -666,8 +671,8 @@ cancelCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+bool JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
                   control_msgs::QueryTrajectoryState::Response& resp)
 {
@@ -684,9 +689,9 @@ queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
   const ros::Time sample_time = time_data->uptime + time_offset;
 
   // Sample trajectory at requested time
-  TrajectoryPtr curr_traj_ptr;
+  ExtendedTrajectoryPtr curr_traj_ptr;
   curr_trajectory_box_.get(curr_traj_ptr);
-  Trajectory& curr_traj = *curr_traj_ptr;
+  Trajectory& curr_traj = curr_traj_ptr->trajectory;
 
   typename Segment::State response_point = typename Segment::State(joint_names_.size());
 
@@ -714,8 +719,8 @@ queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 publishState(const ros::Time& time)
 {
   // Check if it's time to publish
@@ -741,8 +746,8 @@ publishState(const ros::Time& time)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 preemptActiveRTGoal()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -756,34 +761,42 @@ preemptActiveRTGoal()
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 setHoldPosition(const ros::Time& time, RealtimeGoalHandlePtr gh)
 {
   hold_traj_builder_
       ->setStartTime(time.toSec())
       ->setGoalHandle(gh)
-      ->buildTrajectory(hold_trajectory_ptr_.get());
+      ->buildTrajectory(&(hold_trajectory_ptr_->trajectory));
   hold_traj_builder_->reset();
+
+
+  ExtendedTrajectoryPtr curr_traj_ptr;
+  curr_trajectory_box_.get(curr_traj_ptr);
+  // Copy over motion settings
+  if (curr_traj_ptr) {
+      hold_trajectory_ptr_->motion_settings = curr_traj_ptr->motion_settings;
+  }
   curr_trajectory_box_.set(hold_trajectory_ptr_);
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 updateFuncExtensionPoint(const Trajectory& curr_traj, const TimeData& time_data)
 {
   // To be implemented by derived class
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline unsigned int JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+inline unsigned int JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 getNumberOfJoints() const
 {
   return joints_.size();
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 updateStates(const ros::Time& sample_time, const Trajectory* const traj)
 {
   old_desired_state_ = desired_state_;
@@ -813,8 +826,8 @@ updateStates(const ros::Time& sample_time, const Trajectory* const traj)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
 setActionFeedback()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -837,12 +850,11 @@ setActionFeedback()
 
 }
 
-template <class SegmentImpl, class HardwareInterface>
-typename JointTrajectoryController<SegmentImpl, HardwareInterface>::TrajectoryPtr
-JointTrajectoryController<SegmentImpl, HardwareInterface>::createHoldTrajectory(const unsigned int& number_of_joints)
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+bool
+JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::createHoldTrajectory(const unsigned int& number_of_joints, Trajectory &hold_traj)
 {
-  TrajectoryPtr hold_traj {new Trajectory()};
-
+  hold_traj.reserve(number_of_joints);
   typename Segment::State default_state       = typename Segment::State(number_of_joints);
   typename Segment::State default_joint_state = typename Segment::State(1);
   for (unsigned int i = 0; i < number_of_joints; ++i)
@@ -853,10 +865,10 @@ JointTrajectoryController<SegmentImpl, HardwareInterface>::createHoldTrajectory(
 
     TrajectoryPerJoint joint_segment;
     joint_segment.resize(1, hold_segment);
-    hold_traj->push_back(joint_segment);
+    hold_traj.push_back(joint_segment);
   }
 
-  return hold_traj;
+  return hold_traj.size() == number_of_joints;
 }
 
 } // namespace

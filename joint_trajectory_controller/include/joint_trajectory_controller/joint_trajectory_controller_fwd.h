@@ -96,7 +96,7 @@ namespace joint_trajectory_controller
  * \p hardware_interface::VelocityJointInterface, and \p hardware_interface::EffortJointInterface are supported
  * out-of-the-box.
  */
-template <class SegmentImpl, class HardwareInterface>
+template <class SegmentImpl, class HardwareInterface, class MotionSettings = int>
 class JointTrajectoryController : public controller_interface::Controller<HardwareInterface>
 {
 public:
@@ -142,11 +142,18 @@ protected:
   typedef std::unique_ptr<StatePublisher>                                                     StatePublisherPtr;
 
   typedef JointTrajectorySegment<SegmentImpl> Segment;
-  typedef std::vector<Segment> TrajectoryPerJoint;
-  typedef std::vector<TrajectoryPerJoint> Trajectory;
-  typedef std::shared_ptr<Trajectory> TrajectoryPtr;
-  typedef std::shared_ptr<TrajectoryPerJoint> TrajectoryPerJointPtr;
-  typedef realtime_tools::RealtimeBox<TrajectoryPtr> TrajectoryBox;
+  typedef std::vector<Segment> TrajectoryPerJoint; // Individual joint's trajectory
+  typedef std::vector<TrajectoryPerJoint> Trajectory; // Collection of all joint trajectories
+
+  /** Carry a trajectory vector and associated settings together in a single struct for atomic pointer swap*/
+  struct ExtendedTrajectory {
+      ExtendedTrajectory() = default;
+      Trajectory trajectory;
+      MotionSettings motion_settings;
+  };
+
+  typedef std::shared_ptr<ExtendedTrajectory> ExtendedTrajectoryPtr;
+  typedef realtime_tools::RealtimeBox<ExtendedTrajectoryPtr> TrajectoryBox;
   typedef typename Segment::Scalar Scalar;
 
   typedef HardwareInterfaceAdapter<HardwareInterface, typename Segment::State> HwIfaceAdapter;
@@ -170,7 +177,7 @@ protected:
    * The (single segment) hold trajectory is preallocated at initialization time and its size is kept unchanged.
    */
   TrajectoryBox curr_trajectory_box_;
-  TrajectoryPtr hold_trajectory_ptr_; ///< Last hold trajectory values.
+  ExtendedTrajectoryPtr hold_trajectory_ptr_; ///< Last hold trajectory values.
 
   typename Segment::State current_state_;         ///< Preallocated workspace variable.
   typename Segment::State desired_state_;         ///< Preallocated workspace variable.
@@ -255,7 +262,7 @@ protected:
    * @brief Returns a trajectory consisting of joint trajectories with one pre-allocated
    * segment.
    */
-  static TrajectoryPtr createHoldTrajectory(const unsigned int& number_of_joints);
+  static bool createHoldTrajectory(const unsigned int& number_of_joints, Trajectory &hold_trajectory);
 
 private:
   /**
