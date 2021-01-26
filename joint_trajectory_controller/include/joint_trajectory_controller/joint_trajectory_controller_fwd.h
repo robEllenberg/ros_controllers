@@ -50,6 +50,14 @@
 
 namespace joint_trajectory_controller
 {
+  struct TimeData
+  {
+    TimeData() : time(0.0), period(0.0), uptime(0.0) {}
+
+    ros::Time     time;   ///< Time of last update cycle
+    ros::Duration period; ///< Period of last update cycle
+    ros::Time     uptime; ///< Controller uptime. Set to zero at every restart.
+  };
 
 /**
  * \brief Controller for executing joint-space trajectories on a group of joints.
@@ -123,14 +131,7 @@ protected:
   virtual void checkReachedTrajectoryGoal();
   /*\}*/
 
-  struct TimeData
-  {
-    TimeData() : time(0.0), period(0.0), uptime(0.0) {}
-
-    ros::Time     time;   ///< Time of last update cycle
-    ros::Duration period; ///< Period of last update cycle
-    ros::Time     uptime; ///< Controller uptime. Set to zero at every restart.
-  };
+  typedef JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>           JointTrajectoryControllerBaseType;
 
   typedef actionlib::ActionServer<control_msgs::FollowJointTrajectoryAction>                  ActionServer;
   typedef std::shared_ptr<ActionServer>                                                       ActionServerPtr;
@@ -227,7 +228,10 @@ protected:
   void publishState(const ros::Time& time);
 
   /** Actual update method internals (caller manages realtime access to trajectory) */
-  void update_internal(Trajectory &curr_traj, const ros::Time& time, const ros::Duration& period);
+  void update_joint_trajectory(Trajectory &curr_traj, const TimeData& time_data, const ros::Duration& period);
+
+  /** Do realtime-safe acquisitions of time / trajectory pointer data at the start of an update */
+  void prepare_for_update(const ros::Time& time, const ros::Duration& period, ExtendedTrajectoryPtr &traj_ptr_out, TimeData &time_data);
 
   /**
    * \brief Hold the current position.

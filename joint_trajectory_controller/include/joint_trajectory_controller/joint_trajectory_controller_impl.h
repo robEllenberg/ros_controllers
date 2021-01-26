@@ -353,24 +353,30 @@ update(const ros::Time& time, const ros::Duration& period)
 {
   // Get currently followed trajectory
   ExtendedTrajectoryPtr curr_traj_ptr;
-  curr_trajectory_box_.get(curr_traj_ptr);
-  Trajectory& curr_traj = curr_traj_ptr->trajectory;
-  update_internal(curr_traj, time, period);
+  TimeData time_data;
+  prepare_for_update(time, period, curr_traj_ptr, time_data);
+  update_joint_trajectory(curr_traj_ptr->trajectory, time_data, period);
 }
 
 template <class SegmentImpl, class HardwareInterface, class MotionSettings>
 void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
-update_internal(Trajectory &curr_traj, const ros::Time& time, const ros::Duration& period)
+prepare_for_update(const ros::Time& time, const ros::Duration& period, ExtendedTrajectoryPtr &traj_ptr_out, TimeData &time_data)
 {
+  // Get currently followed trajectory (NOTE: shared pointer passed by reference on purpose here!!)
+  curr_trajectory_box_.get(traj_ptr_out);
   old_time_data_ = *(time_data_.readFromRT());
 
   // Update time data
-  TimeData time_data;
   time_data.time   = time;                                     // Cache current time
   time_data.period = period;                                   // Cache current control period
   time_data.uptime = old_time_data_.uptime + period; // Update controller uptime
   time_data_.writeFromNonRT(time_data); // TODO: Grrr, we need a lock-free data structure here!
+}
 
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
+update_joint_trajectory(Trajectory &curr_traj, const TimeData& time_data, const ros::Duration& period)
+{
   // NOTE: It is very important to execute the two above code blocks in the specified sequence: first get current
   // trajectory, then update time data. Hopefully the following paragraph sheds a bit of light on the rationale.
   // The non-rt thread responsible for processing new commands enqueues trajectories that can start at the _next_
