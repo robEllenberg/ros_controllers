@@ -226,6 +226,9 @@ protected:
    */
   void publishState(const ros::Time& time);
 
+  /** Actual update method internals (caller manages realtime access to trajectory) */
+  void update_internal(Trajectory &curr_traj, const ros::Time& time, const ros::Duration& period);
+
   /**
    * \brief Hold the current position.
    *

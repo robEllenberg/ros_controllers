@@ -355,7 +355,13 @@ update(const ros::Time& time, const ros::Duration& period)
   ExtendedTrajectoryPtr curr_traj_ptr;
   curr_trajectory_box_.get(curr_traj_ptr);
   Trajectory& curr_traj = curr_traj_ptr->trajectory;
+  update_internal(curr_traj, time, period);
+}
 
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
+update_internal(Trajectory &curr_traj, const ros::Time& time, const ros::Duration& period)
+{
   old_time_data_ = *(time_data_.readFromRT());
 
   // Update time data
