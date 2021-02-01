@@ -425,6 +425,7 @@ update_joint_trajectory(Trajectory &curr_traj, const TimeData& time_data, const 
           rt_segment_goal->setAborted(rt_segment_goal->preallocated_result_);
           rt_active_goal_.reset();
           successful_joint_traj_.reset();
+          onTrajectoryError(rt_segment_goal->preallocated_result_->error_code);
         }
       }
       else if (segment_it == --curr_traj[i].end())
@@ -460,6 +461,7 @@ update_joint_trajectory(Trajectory &curr_traj, const TimeData& time_data, const 
           rt_segment_goal->setAborted(rt_segment_goal->preallocated_result_);
           rt_active_goal_.reset();
           successful_joint_traj_.reset();
+          onTrajectoryError(rt_segment_goal->preallocated_result_->error_code);
         }
       }
     }
@@ -476,6 +478,13 @@ update_joint_trajectory(Trajectory &curr_traj, const TimeData& time_data, const 
   setActionFeedback();
 
   publishState(time_data.uptime);
+}
+
+template <class SegmentImpl, class HardwareInterface, class MotionSettings>
+void JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
+onTrajectoryError(int error_code)
+{
+    // to be implemented in derived classes
 }
 
 /**

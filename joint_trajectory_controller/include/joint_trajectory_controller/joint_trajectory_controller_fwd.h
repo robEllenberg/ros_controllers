@@ -188,6 +188,9 @@ protected:
   typename Segment::State desired_joint_state_;   ///< Preallocated workspace variable.
   typename Segment::State state_joint_error_;     ///< Preallocated workspace variable.
 
+  // Handle that can be overridden to do additional work when an error is detected in the update() function
+  virtual void onTrajectoryError(int error_code);
+
   std::unique_ptr<TrajectoryBuilder<SegmentImpl> > hold_traj_builder_;
 
   realtime_tools::RealtimeBuffer<TimeData> time_data_;
