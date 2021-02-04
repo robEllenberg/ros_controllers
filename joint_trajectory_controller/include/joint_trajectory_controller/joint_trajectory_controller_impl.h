@@ -320,7 +320,7 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface, MotionSettings>::
       ROS_ERROR_STREAM_NAMED(name_, "Failed to create valid hold trajectory");
       return false;
   }
-  assert(joint_names_.size() == hold_trajectory_ptr_->size());
+  assert(joint_names_.size() == hold_trajectory_ptr_->trajectory.size());
 
   if (stop_trajectory_duration_ == 0.0)
   {
